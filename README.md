@@ -19,11 +19,9 @@ PostgreSQL execution mode for Emacs with secure auth-source integration.
 ### With Elpaca
 
 ```elisp
-;; Install pg-el with lambda password support
+;; Install pg from MELPA
 (use-package pg
-  :ensure (:host github 
-           :repo "Kaylebor/pg-el" 
-           :branch "feature/lambda-password-support"))
+  :ensure t)
 
 ;; Install pgx-mode
 (use-package pgx-mode
@@ -36,15 +34,17 @@ PostgreSQL execution mode for Emacs with secure auth-source integration.
 ### With built-in package.el
 
 ```bash
-# Clone both repositories:
-git clone -b feature/lambda-password-support https://github.com/Kaylebor/pg-el.git ~/.emacs.d/site-lisp/pg-el
+# Clone pgx-mode (pg is installable via MELPA)
 git clone https://github.com/Kaylebor/pgx-mode.git ~/.emacs.d/site-lisp/pgx-mode
 ```
 
 ```elisp
 ;; Add to your init.el:
-(add-to-list 'load-path "~/.emacs.d/site-lisp/pg-el")
 (add-to-list 'load-path "~/.emacs.d/site-lisp/pgx-mode")
+(require 'package)
+(unless (package-installed-p 'pg)
+  (package-refresh-contents)
+  (package-install 'pg))
 (require 'pg)
 (require 'pgx-mode)
 (add-hook 'sql-mode-hook #'pgx-mode)
@@ -162,7 +162,7 @@ Emacs uses GnuTLS for TLS connections while most PostgreSQL services expect Open
 ## Dependencies
 
 - Emacs 27.1+
-- [pg-el](https://github.com/emarsden/pg-el) with lambda password support
+- [pg](https://melpa.org/#/pg) with lambda password support
 - auth-source (built-in)
 - GnuTLS support in Emacs
 
