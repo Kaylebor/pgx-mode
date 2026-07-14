@@ -1,20 +1,20 @@
 .PHONY: all clean lint compile test
 
 EMACS ?= emacs
-BATCH = $(EMACS) -Q --batch
+BATCH = $(EMACS) -Q --batch --eval "(package-initialize)" -L .
 
 all: compile
 
 compile:
-	$(BATCH) -L . -L ~/projects/pg-el -f batch-byte-compile pgx-mode.el
+	$(BATCH) -f batch-byte-compile pgx-mode.el
 
 lint:
-	$(BATCH) -L . -L ~/projects/pg-el \
+	$(BATCH) \
 		--eval "(require 'checkdoc)" \
-		-f checkdoc-file pgx-mode.el
+		--eval '(checkdoc-file "pgx-mode.el")'
 
 clean:
 	rm -f *.elc
 
 test: compile
-	@echo "Tests not yet implemented"
+	$(BATCH) -l test-pgx-mode.el

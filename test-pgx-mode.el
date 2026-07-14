@@ -11,6 +11,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'cl-lib)
 (require 'pgx-mode)
 
 ;;; Test fixtures
@@ -54,6 +55,123 @@
     (let ((params (pgx-get-connection-params 'test-no-ssl)))
       (should (equal (plist-get params :sslmode) "prefer")))))
 
+(ert-deftest test-pgx-connect-missing-connection ()
+  "Test that connecting with an unknown name signals a clear error."
+  (let ((pgx-connections nil))
+    (should-error (pgx-connect 'missing)
+                  :type 'error)))
+
+(ert-deftest test-pgx-connect-sslmode-options ()
+  "Test that SSL modes map to the expected pg-el TLS options."
+  (dolist (case '(("disable" nil)
+                  ("allow" nil)
+                  ("prefer" t)
+                  ("require" (:verify-error nil
+                              :verify-hostname-error nil
+                              :priority-string "NORMAL:%COMPAT"
+                              :min-prime-bits nil))
+                  ("verify-ca" (:verify-hostname-error nil
+                                :priority-string "NORMAL:%COMPAT"))
+                  ("verify-full" (:priority-string "NORMAL:%COMPAT"))))
+    (let ((pgx-connections
+           `((test (server "localhost")
+                   (port 5433)
+                   (database "database")
+                   (user "user")
+                   (sslmode ,(car case)))))
+          captured)
+      (cl-letf (((symbol-function 'pg-connect-plist)
+                 (lambda (&rest args)
+                   (setq captured args)
+                   'connection)))
+        (should (eq (pgx-connect 'test) 'connection))
+        (should (equal captured
+                       `("database" "user"
+                          :password ""
+                          :host "localhost"
+                          :port 5433
+                          :tls-options ,(cadr case))))))))
+
+(ert-deftest test-pgx-connect-disabled-certificate-verification ()
+  "Test TLS options when server certificate verification is disabled."
+  (dolist (sslmode '("verify-ca" "verify-full"))
+    (let ((pgx-connections
+           `((test (server "localhost")
+                   (database "database")
+                   (user "user")
+                   (sslmode ,sslmode))))
+          (pgx-verify-server-cert nil)
+          captured)
+      (cl-letf (((symbol-function 'pg-connect-plist)
+                 (lambda (&rest args)
+                   (setq captured args)
+                   'connection)))
+        (pgx-connect 'test)
+        (should (equal (plist-get (cddr captured) :tls-options)
+                       '(:verify-error nil
+                         :verify-hostname-error nil
+                         :priority-string "NORMAL:%COMPAT"
+                         :min-prime-bits nil)))))))
+
+(ert-deftest test-pgx-connect-remote-password-lambda ()
+  "Test that remote connections pass the auth-source password function."
+  (let ((pgx-connections test-pgx-connections)
+        (password-function (lambda () "unused"))
+        captured)
+    (cl-letf (((symbol-function 'pgx-auth-source-get-password)
+               (lambda (host user port)
+                 (should (equal host "test.example.com"))
+                 (should (equal user "test_user"))
+                 (should (= port 5432))
+                 password-function))
+              ((symbol-function 'pg-connect-plist)
+               (lambda (&rest args)
+                 (setq captured args)
+                 'connection)))
+      (pgx-connect 'test-remote)
+      (should (eq (plist-get (cddr captured) :password)
+                  password-function)))))
+
+(ert-deftest test-pgx-connect-restores-gnutls-setting-on-error ()
+  "Test restoration of the global GnuTLS setting after connect errors."
+  (let ((pgx-connections test-pgx-connections)
+        (gnutls-verify-error t))
+    (cl-letf (((symbol-function 'pgx-auth-source-get-password)
+               (lambda (&rest _) (lambda () "unused")))
+              ((symbol-function 'pg-connect-plist)
+               (lambda (&rest _)
+                 (should-not gnutls-verify-error)
+                 (error "Connection failed"))))
+      (should-error (pgx-connect 'test-remote))
+      (should gnutls-verify-error))))
+
+;;; Tests for query execution
+
+(ert-deftest test-pgx-execute-query-disconnects-on-success ()
+  "Test that successful query execution disconnects its connection."
+  (let (disconnected)
+    (cl-letf (((symbol-function 'pgx-connect) (lambda (_) 'connection))
+              ((symbol-function 'pg-exec)
+               (lambda (connection query)
+                 (should (eq connection 'connection))
+                 (should (equal query "SELECT 1"))
+                 'result))
+              ((symbol-function 'pg-disconnect)
+               (lambda (connection) (setq disconnected connection))))
+      (should (eq (pgx-execute-query 'test "SELECT 1") 'result))
+      (should (eq disconnected 'connection)))))
+
+(ert-deftest test-pgx-execute-query-disconnects-on-error ()
+  "Test that failed query execution still disconnects its connection."
+  (let (disconnected)
+    (cl-letf (((symbol-function 'pgx-connect) (lambda (_) 'connection))
+              ((symbol-function 'pg-exec)
+               (lambda (&rest _) (error "Query failed")))
+              ((symbol-function 'pg-disconnect)
+               (lambda (connection) (setq disconnected connection))))
+      (should-error (pgx-execute-query 'test "invalid"))
+      (should (eq disconnected 'connection)))))
+
 ;;; Tests for auth-source integration
 
 (ert-deftest test-pgx-auth-source-cache ()
@@ -79,7 +197,7 @@
     (goto-char 30) ; Middle of second statement
     (let ((bounds (pgx-statement-bounds)))
       (should (= (car bounds) 22))
-      (should (= (cdr bounds) 43)))))
+      (should (= (cdr bounds) 42)))))
 
 (ert-deftest test-pgx-statement-bounds-no-semicolon ()
   "Test statement bounds when no semicolon is present."

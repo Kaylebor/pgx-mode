@@ -216,14 +216,14 @@ If you get certificate verification errors with cloud providers:
 
 Adjust the connection timeout if needed:
 ```elisp
-(setq pg-connect-timeout 10)  ; Default is 5 seconds
+(setq pg-connect-timeout 10)  ; Default is 30 seconds
 ```
 
 ### Debug Connection Issues
 
-Enable query logging:
+pg-el 0.67 enables query logging per connection:
 ```elisp
-(setq pg-log-queries t)
+(pg-enable-query-log connection)
 ```
 
 ## License

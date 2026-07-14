@@ -2,7 +2,7 @@
 
 ;; Author: Ender Veiga Bueno
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "27.1") (pg "0.37"))
+;; Package-Requires: ((emacs "28.1") (pg "0.67"))
 ;; Keywords: database, postgresql, sql
 ;; URL: https://github.com/Kaylebor/pgx-mode
 
@@ -42,14 +42,14 @@ Each entry is (connection-name . plist) with keys: server, port, database, user.
   :group 'pgx)
 
 (defcustom pgx-default-connection 'localhost
-  "Default connection to use when pgx-mode starts."
+  "Default connection to use when `pgx-mode' starts."
   :type 'symbol
   :group 'pgx)
 
 (defcustom pgx-verify-server-cert t
   "Whether to verify server certificates for SSL connections.
-When non-nil (the default), pgx-mode will verify certificates
-according to the sslmode setting. Set to nil to disable all
+When non-nil (the default), `pgx-mode' will verify certificates
+according to the sslmode setting.  Set to nil to disable all
 certificate verification (not recommended for production)."
   :type 'boolean
   :group 'pgx)
@@ -118,7 +118,7 @@ Returns a connection object or signals an error."
                        (pgx-auth-source-get-password server user port)))
            ;; Determine TLS options based on sslmode
            ;; Note: pg-el expects t for basic TLS or a plist for gnutls-negotiate options
-           (tls-options 
+           (tls-options
             (cond
              ((string= sslmode "disable") nil)
              ((string= sslmode "allow") nil)  ; Try without TLS first
@@ -126,7 +126,7 @@ Returns a connection object or signals an error."
              ((string= sslmode "require")
               ;; Enable TLS without certificate verification
               ;; (matches JDBC behavior with sslmode=require)
-              '(:verify-error nil 
+              '(:verify-error nil
                 :verify-hostname-error nil
                 :priority-string "NORMAL:%COMPAT"
                 :min-prime-bits nil))
@@ -153,10 +153,12 @@ Returns a connection object or signals an error."
             ;; Temporarily set global variable for sslmode=require
             (when (string= sslmode "require")
               (setq gnutls-verify-error nil))
-            ;; Use pg-connect with lambda password support
-            (if tls-options
-                (pg-connect database user password server port tls-options)
-              (pg-connect database user password server port)))
+            ;; Use pg-connect-plist with lambda password support
+            (pg-connect-plist database user
+                              :password password
+                              :host server
+                              :port port
+                              :tls-options tls-options))
         ;; Restore original value
         (setq gnutls-verify-error orig-gnutls-verify-error)))))
 
@@ -265,7 +267,7 @@ Opens a connection, executes the query, closes the connection."
        (message "Error: %s" (error-message-string err))))))
 
 (defun pgx-execute-region (start end)
-  "Execute the SQL in the selected region."
+  "Execute the SQL in the region between START and END."
   (interactive "r")
   (let* ((connection (or pgx-current-connection pgx-default-connection))
          (query (buffer-substring-no-properties start end)))
@@ -308,7 +310,7 @@ Statements are delimited by semicolons."
     (define-key map (kbd "C-c C-s") #'pgx-switch-connection)
     (define-key map (kbd "C-c C-d") #'pgx-switch-database)
     map)
-  "Keymap for pgx-mode.")
+  "Keymap for `pgx-mode'.")
 
 ;;;###autoload
 (define-minor-mode pgx-mode
@@ -322,7 +324,7 @@ Statements are delimited by semicolons."
 
 ;;;###autoload
 (defun pgx-setup ()
-  "Set up pgx-mode with sql-mode integration."
+  "Set up `pgx-mode' with `sql-mode' integration."
   (add-hook 'sql-mode-hook #'pgx-mode))
 
 ;; Load optional integrations if available
