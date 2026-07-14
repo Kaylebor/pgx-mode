@@ -172,6 +172,36 @@
       (should-error (pgx-execute-query 'test "invalid"))
       (should (eq disconnected 'connection)))))
 
+;;; Tests for database listing
+
+(ert-deftest test-pgx-list-databases-uses-pg-el-and-disconnects ()
+  "Test database listing through pg-el with filtering and sorting."
+  (let ((pgx-current-connection 'test-remote)
+        disconnected)
+    (cl-letf (((symbol-function 'pgx-connect)
+               (lambda (connection-name)
+                 (should (eq connection-name 'test-remote))
+                 'connection))
+              ((symbol-function 'pg-databases)
+               (lambda (connection)
+                 (should (eq connection 'connection))
+                 '("zeta" "template1" "alpha" "template0")))
+              ((symbol-function 'pg-disconnect)
+               (lambda (connection) (setq disconnected connection))))
+      (should (equal (pgx-list-databases) '("alpha" "zeta")))
+      (should (eq disconnected 'connection)))))
+
+(ert-deftest test-pgx-list-databases-disconnects-on-error ()
+  "Test that failed database listing still disconnects its connection."
+  (let (disconnected)
+    (cl-letf (((symbol-function 'pgx-connect) (lambda (_) 'connection))
+              ((symbol-function 'pg-databases)
+               (lambda (_) (error "Listing failed")))
+              ((symbol-function 'pg-disconnect)
+               (lambda (connection) (setq disconnected connection))))
+      (should-error (pgx-list-databases))
+      (should (eq disconnected 'connection)))))
+
 ;;; Tests for auth-source integration
 
 (ert-deftest test-pgx-auth-source-cache ()

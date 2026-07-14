@@ -22,6 +22,7 @@
 ;;; Code:
 
 (require 'pg)
+(require 'seq)
 (require 'sql)
 (require 'auth-source)
 
@@ -230,12 +231,18 @@ Opens a connection, executes the query, closes the connection."
 (defun pgx-list-databases ()
   "List available databases on the current connection."
   (interactive)
-  (let* ((connection (or pgx-current-connection pgx-default-connection))
-         (query "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname")
-         (results (pgx-execute-query connection query)))
-    (if (pgresult-p results)
-        (mapcar #'car (pgresult-tuples results))
-      (error "Failed to list databases"))))
+  (let ((connection (or pgx-current-connection pgx-default-connection))
+        (con nil))
+    (unwind-protect
+        (progn
+          (setq con (pgx-connect connection))
+          (sort (seq-remove
+                 (lambda (database)
+                   (member database '("template0" "template1")))
+                 (pg-databases con))
+                #'string<))
+      (when con
+        (pg-disconnect con)))))
 
 (defun pgx-switch-database ()
   "Switch to a different database on the current connection."
