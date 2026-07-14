@@ -2,7 +2,7 @@
 
 ;; Author: Ender Veiga Bueno
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "27.1") (pgx-mode "0.1.0") (pgmacs "0.1.0"))
+;; Package-Requires: ((emacs "27.1") (pgmacs "0.1.0"))
 ;; Keywords: database, postgresql, sql
 
 ;;; Commentary:
